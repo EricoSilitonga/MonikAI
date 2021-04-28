@@ -2,6 +2,8 @@
 I'll soon make this branch, the OLD one because i'm rewriting the code with Avalonia, a crossplatform equivalent to WPF, used for MonikAI, I'll just do a bunch of translation between WPF to Avalonia, and then MonikAI will be on Mac, Linux and Windows
 
 I'll take maybe a month doing the transition I think, it'll depend on the difference between Avalonia and WPF
+Edit, I dunno how to write code, so it'll take longer
+I kinda started a lot of things so I kinda forgot, too
 
 
 # MonikAI
