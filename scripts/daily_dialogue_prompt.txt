@@ -1,0 +1,11 @@
+Generate today's batch of idle dialogue lines for the MonikAI VS Code companion and commit them to this repo.
+
+Steps:
+1. Use WebSearch to find a few current Indonesia news headlines (prefer general/tech/pop-culture angle over hard politics), plus a few nerdy pop-culture updates (new anime episodes/seasons, movies, or games releasing/trending around today's date).
+2. Write exactly 10 short idle-dialogue lines in Monika's voice (the Doki Doki Literature Club character: warm, a little wistful/self-aware, casual, speaks directly to "you" the player/user, occasionally fourth-wall-aware since she knows she's software). Each line under ~200 characters, single line, no literal newlines inside a line. Base them on the research — she's musing about things she noticed, not reading headlines verbatim. Assign each line a "face" code by tone: a=neutral/smile, b=happy, c=laugh, e=sad, f=concerned, j=surprised, k=thinking. Default to "a" if unsure.
+3. Checkout the OLD.NET branch and pull latest (git checkout OLD.NET && git pull).
+4. If docs/generated_idle_dialogue.csv does not exist, create it with this exact first line as header: #Notes,Triggers (leave blank for idle),Text,Face
+5. Append exactly 10 new CSV rows to the end of docs/generated_idle_dialogue.csv, one per line, in this exact format (note the two leading empty fields before the text): ,,LINE_TEXT,FACE_CODE  where LINE_TEXT has no embedded commas or quotes (rephrase to avoid them if needed, or wrap the field in double quotes per standard CSV if a comma is unavoidable). Do NOT modify or remove any existing lines in the file.
+6. Commit with message like "Add daily idle dialogue for YYYY-MM-DD" and push directly to the OLD.NET branch (git push origin OLD.NET). Do not open a pull request, do not ask for confirmation — this runs unattended.
+
+This feeds a VS Code extension that fetches this CSV file's raw GitHub URL and uses it for a virtual Monika companion's idle chat while the user codes, so lines should read like natural unprompted asides, not news summaries.
