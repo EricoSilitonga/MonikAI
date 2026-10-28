@@ -5,8 +5,14 @@ import * as https from 'https';
 import { parseCsv, parseCsvContent, Entry } from './csv';
 
 const IDLE_INTERVAL_MS = 60 * 1000;
-const SHEET_CSV_URL =
-  'https://docs.google.com/spreadsheets/d/1HZVg81cmAFULlnra5k1fysK6cIoT9QbCsBasPimnPCE/export?format=csv&gid=0';
+
+// Turns a normal sheet link (.../d/<id>/edit#gid=N) into its CSV export; other URLs pass through.
+function toCsvUrl(url: string): string {
+  const m = url.match(/^https:\/\/docs\.google\.com\/spreadsheets\/d\/([\w-]+)(?:.*[#&?]gid=(\d+))?/);
+  return m && !url.includes('/pub') && !url.includes('export?')
+    ? `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv&gid=${m[2] ?? 0}`
+    : url;
+}
 
 // Google's export URL redirects once to a signed download link. Only https hosts under google.com /
 // googleusercontent.com are followed, with a timeout and size cap, since the sheet is untrusted input.
@@ -14,7 +20,7 @@ const MAX_CSV_BYTES = 1024 * 1024;
 const allowedHost = (u: URL) =>
   u.protocol === 'https:' && /(^|\.)(google\.com|googleusercontent\.com)$/.test(u.hostname);
 
-function fetchSheetCsv(url: string = SHEET_CSV_URL, redirectsLeft = 3): Promise<string> {
+function fetchSheetCsv(url: string, redirectsLeft = 3): Promise<string> {
   return new Promise(resolve => {
     let target: URL;
     try { target = new URL(url); } catch { return resolve(''); }
@@ -57,16 +63,22 @@ export function activate(ctx: vscode.ExtensionContext) {
     }
     return remote.length > 0;
   };
-  try { apply(fs.readFileSync(cacheFile, 'utf8')); } catch { /* no cache yet */ }
-  fetchSheetCsv().then(csv => {
-    if (!apply(csv)) return;
-    try {
-      fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
-      fs.writeFileSync(cacheFile, csv);
-    } catch { /* cache is best-effort */ }
-  });
+  const load = () => {
+    const sheetUrl = vscode.workspace.getConfiguration('monikai').get<string>('sheetUrl', '').trim();
+    if (!sheetUrl) return; // no sheet configured: bundled dialogue only
+    try { apply(fs.readFileSync(cacheFile, 'utf8')); } catch { /* no cache yet */ }
+    fetchSheetCsv(toCsvUrl(sheetUrl)).then(csv => {
+      if (!apply(csv)) return;
+      try {
+        fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
+        fs.writeFileSync(cacheFile, csv);
+      } catch { /* cache is best-effort */ }
+    });
+  };
+  load();
 
   ctx.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration(e => e.affectsConfiguration('monikai.sheetUrl') && load()),
     vscode.window.registerWebviewViewProvider('monikai.view', new MonikaProvider(ctx.extensionUri, idle))
   );
 }

@@ -50,15 +50,21 @@ npx @vscode/vsce package
 code --install-extension monikai-vscode-0.1.0.vsix
 ```
 
-## Adding dialogue
+## Using your own sheet
 
-Edit the Google Sheet referenced by `SHEET_CSV_URL` in `extension.ts`, or the bundled `media/data/idle_dialogue.csv` as the offline fallback. Faces are the filenames in `media/faces/` without `.png`.
+No sheet is bundled. By default Monika only uses `media/data/idle_dialogue.csv`. To use your own dialogue:
+
+1. Make a Google Sheet with the same columns as `idle_dialogue.csv`: trigger, then text/face pairs.
+2. Share it as **Anyone with the link can view**.
+3. Paste the link into the `monikai.sheetUrl` setting. Changes apply immediately.
+
+The last good download is cached for offline use. Faces are the filenames in `media/faces/` without `.png`.
 
 ## Security
 
 - Dialogue comes from a Google Sheet, so it is treated as untrusted. Fetches are https-only, limited to Google hosts (including redirects), time out after 10s and are capped at 1MB.
 - Text is rendered with `textContent`, face names are validated against `[A-Za-z0-9-]+`, and the webview CSP blocks everything except nonce'd inline script and local images.
-- The extension makes one network request, to the sheet, and sends no user data.
+- The extension only makes a network request if you set `monikai.sheetUrl`, and only to Google, and sends no user data.
 
 ## Disclaimer
 

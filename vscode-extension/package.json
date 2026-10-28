@@ -20,6 +20,16 @@
           "name": "MonikAI"
         }
       ]
+    },
+    "configuration": {
+      "title": "MonikAI",
+      "properties": {
+        "monikai.sheetUrl": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Link to your own Google Sheet of idle dialogue (share it as *Anyone with the link can view*). Leave empty to use only the bundled dialogue."
+        }
+      }
     }
   },
   "scripts": {
