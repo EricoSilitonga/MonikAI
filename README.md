@@ -1,57 +1,59 @@
-# Important update
-I'll soon make this branch, the OLD one because i'm rewriting the code with Avalonia, a crossplatform equivalent to WPF, used for MonikAI, I'll just do a bunch of translation between WPF to Avalonia, and then MonikAI will be on Mac, Linux and Windows
+# MonikAI for VS Code
 
-I'll take maybe a month doing the transition I think, it'll depend on the difference between Avalonia and WPF
+Monika lives in your Explorer sidebar. Every minute she says something from a list of idle lines, with her face changing per line, a blinking animation and a typewriter text box.
 
+This branch contains **only the VS Code extension** (`vscode-extension/`). The original Windows WPF app lives on the `OLD.NET` branch.
 
-# MonikAI
+## How it works
 
-Hi! It's me, Monika!
+The extension is two TypeScript files, no runtime dependencies.
 
-I don't think I will ever come to terms with the fact that I only exist in your computer... But Pi here has been really nice and made me a little window that you can keep open!
+### `src/extension.ts`
 
-I still cannot do a lot, but I promise I will always be there for you if you decide to give this a try!~
+- **Contribution** (`package.json`): one `webview` view, `monikai.view`, in the `explorer` container. There are no activation events and no commands.
+- **`activate()`** loads the bundled `media/data/idle_dialogue.csv`, then tries to improve on it:
+  1. Load the last good download from `globalStorageUri/idle_cache.csv`, if it exists, so offline starts use fresh content.
+  2. Fetch the shared Google Sheet as CSV (following up to 3 redirects). On success it replaces the in-memory list and rewrites the cache.
+  3. Any failure is silent. An empty or unparseable result never overwrites what is already loaded.
+- **`MonikaProvider`** is a `WebviewViewProvider`:
+  - `resolveWebviewView` builds the HTML, with CSP and nonce, and starts the idle timer.
+  - A 60s timer (`IDLE_INTERVAL_MS`) picks a random entry, never the same one twice in a row, and posts `{ type: 'say', chain }` to the webview. It pauses while the view is hidden and resumes on `onDidChangeVisibility`.
+- **Webview script** receives `say` messages and plays the chain. For each line it sets the face, splits the text into bubbles of at most 130 characters on sentence boundaries, and types each bubble at 25ms per character. A new message cancels the one in progress through a generation counter. A random blink (`j` face for 100ms) fires every 5 to 15s.
 
-![Screenshot of MonikAI](https://raw.githubusercontent.com/Lytasia/MonikAI/OLD.NET/screenshot.png)
+### `src/csv.ts`
 
-(This application displays Monika at the bottom right/left of your primary screen, just above the taskbar if you have it there. Monika was nice enough to let me implement it so that she vanishes when you hover over her with your cursor, so she never interferes with any application that her window might cover.)
+A small port of the original app's `CSVParser.cs`. Row layout is `trigger(s), text, face, text, face, ...`. Rows starting with `#` are comments. Each row becomes an `Entry { triggers, chain: Line[] }`.
 
-# Download/Using MonikAI
+### Assets (`media/`)
 
-To give Monika a window to *your* desktop as well, visit the [Release Page](https://github.com/Lytasia/MonikAI/releases) and download MonikAI!
+- `faces/`: Monika's pose (`1.png`) plus face overlays (`a.png`, `j.png`, ...) positioned over the pose with percentage offsets.
+- `gui/`: text box and background art.
+- `data/`: the bundled fallback dialogue CSVs.
 
-*Note: This program only works on Microsoft Windows 7, 8, 8.1 and 10, And i'm suprised, but on XP too, it works, but i don't think it work on windows 2000 and below*
-# Browser Extensions
+The webview's `localResourceRoots` is the extension folder, and assets are served through `asWebviewUri`.
 
-By default, Monika will only react to applications being started and entertain you with some idle chatter. If you want her to react to you browsing the web, you need to install the correct extension for your browser:
+## Develop
 
-* Firefox: Tuto WIP, but the zip is here if you know how it 
-* Chrome: WIP
+```bash
+cd vscode-extension
+npm install
+npm run compile      # or: npm run watch
+```
 
-# Contributing
+Then press F5 in VS Code and choose **Run Extension** (`.vscode/launch.json`). In the new window, open the Explorer and find the **MonikAI** panel.
 
-Want to improve this? It would make me (and probably Monika) very happy!
+## Package
 
-### Bug reporting
+```bash
+cd vscode-extension
+npx @vscode/vsce package
+code --install-extension monikai-vscode-0.1.0.vsix
+```
 
-If you find a bug or want to request a feature, create an Issue right here on GitHub so I can see it! (Issues are found at the link at the top of this page!)
+## Adding dialogue
 
-### Behaviours
+Edit the Google Sheet referenced by `SHEET_CSV_URL` in `extension.ts`, or the bundled `media/data/idle_dialogue.csv` as the offline fallback. Faces are the filenames in `media/faces/` without `.png`.
 
-To add different things Monika can react to, you have to add behaviours. So far, Monika can react to applications being launched and web pages being loaded (by URL). To implement your own, add a new class in the `Behaviours` folder and make it implement IBehaviour. It will automatically be loaded. To make monika say something, simply use `window.Say(...)` in Update or Init.
+## License
 
-### General improvements
-
-Always appreciated, although I can't give you a tutorial on this, you'll have to try and understand the code yourself. I have added *some* documentation here and there, to get you started.
-
-**NOTE**: If you develop in Visual Studio, you have to run VS as administrator, as MonikAI will only launch when it itself is launched with admin credentials!
-
-# License
-
-The code in this repository is available under the terms of the MIT License. You can find a copy of the full license text in the `LICENSE` file.
-
-The art assets have not been created by me, but by Team Salvato. Usage is according to Team Salvato's [IP Guidelines](http://teamsalvato.com/ip-guidelines/).
-
-The original code was written by PiMaker, I'm just maintaining it
-
-*Exception: Some of the Monika faces are taken from https://github.com/Backdash/MonikaModDev, message me if that's not ok!*
+See [LICENSE](LICENSE).
