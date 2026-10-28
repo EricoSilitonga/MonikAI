@@ -54,6 +54,16 @@ code --install-extension monikai-vscode-0.1.0.vsix
 
 Edit the Google Sheet referenced by `SHEET_CSV_URL` in `extension.ts`, or the bundled `media/data/idle_dialogue.csv` as the offline fallback. Faces are the filenames in `media/faces/` without `.png`.
 
+## Security
+
+- Dialogue comes from a Google Sheet, so it is treated as untrusted. Fetches are https-only, limited to Google hosts (including redirects), time out after 10s and are capped at 1MB.
+- Text is rendered with `textContent`, face names are validated against `[A-Za-z0-9-]+`, and the webview CSP blocks everything except nonce'd inline script and local images.
+- The extension makes one network request, to the sheet, and sends no user data.
+
+## Disclaimer
+
+Monika and the *Doki Doki Literature Club* art are the property of Team Salvato. This is an unofficial fan project, not affiliated with or endorsed by them, and the MIT license covers the code only. See the [IP guidelines](http://teamsalvato.com/ip-guidelines/).
+
 ## License
 
 See [LICENSE](LICENSE).

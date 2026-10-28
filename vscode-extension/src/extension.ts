@@ -8,22 +8,38 @@ const IDLE_INTERVAL_MS = 60 * 1000;
 const SHEET_CSV_URL =
   'https://docs.google.com/spreadsheets/d/1HZVg81cmAFULlnra5k1fysK6cIoT9QbCsBasPimnPCE/export?format=csv&gid=0';
 
-// Google's export URL redirects once to a signed download link.
+// Google's export URL redirects once to a signed download link. Only https hosts under google.com /
+// googleusercontent.com are followed, with a timeout and size cap, since the sheet is untrusted input.
+const MAX_CSV_BYTES = 1024 * 1024;
+const allowedHost = (u: URL) =>
+  u.protocol === 'https:' && /(^|\.)(google\.com|googleusercontent\.com)$/.test(u.hostname);
+
 function fetchSheetCsv(url: string = SHEET_CSV_URL, redirectsLeft = 3): Promise<string> {
   return new Promise(resolve => {
-    https.get(url, res => {
+    let target: URL;
+    try { target = new URL(url); } catch { return resolve(''); }
+    if (!allowedHost(target)) return resolve('');
+    const req = https.get(target, { timeout: 10000 }, res => {
       if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirectsLeft > 0) {
-        resolve(fetchSheetCsv(res.headers.location, redirectsLeft - 1));
+        res.resume();
+        resolve(fetchSheetCsv(new URL(res.headers.location, target).toString(), redirectsLeft - 1));
         return;
       }
       if (res.statusCode !== 200) {
+        res.resume();
         resolve('');
         return;
       }
       let data = '';
-      res.on('data', chunk => (data += chunk));
+      res.setEncoding('utf8');
+      res.on('data', chunk => {
+        data += chunk;
+        if (data.length > MAX_CSV_BYTES) { req.destroy(); resolve(''); }
+      });
       res.on('end', () => resolve(data));
-    }).on('error', () => resolve(''));
+    });
+    req.on('timeout', () => { req.destroy(); resolve(''); });
+    req.on('error', () => resolve(''));
   });
 }
 
@@ -163,7 +179,7 @@ class MonikaProvider implements vscode.WebviewViewProvider {
   const faceBase = "${faceBase}";
   let blinkTimer;
 
-  function setFace(face) { faceEl.src = faceBase + '/' + face + '.png'; }
+  function setFace(face) { if (!/^[A-Za-z0-9-]+$/.test(face)) face = 'a'; faceEl.src = faceBase + '/' + face + '.png'; }
 
   const MAX_BUBBLE = 130;
   function splitBubbles(text) {
