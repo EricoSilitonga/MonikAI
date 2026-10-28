@@ -3,37 +3,54 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.activate = activate;
 const vscode = require("vscode");
 const path = require("path");
+const fs = require("fs");
 const https = require("https");
 const csv_1 = require("./csv");
 const IDLE_INTERVAL_MS = 4 * 60 * 1000;
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/1HZVg81cmAFULlnra5k1fysK6cIoT9QbCsBasPimnPCE/export?format=csv&gid=0';
 // Google's export URL redirects once to a signed download link.
-function fetchSheetIdle(url = SHEET_CSV_URL, redirectsLeft = 3) {
+function fetchSheetCsv(url = SHEET_CSV_URL, redirectsLeft = 3) {
     return new Promise(resolve => {
         https.get(url, res => {
             if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirectsLeft > 0) {
-                resolve(fetchSheetIdle(res.headers.location, redirectsLeft - 1));
+                resolve(fetchSheetCsv(res.headers.location, redirectsLeft - 1));
                 return;
             }
             if (res.statusCode !== 200) {
-                resolve([]);
+                resolve('');
                 return;
             }
             let data = '';
             res.on('data', chunk => (data += chunk));
-            res.on('end', () => resolve((0, csv_1.parseCsvContent)(data)));
-        }).on('error', () => resolve([]));
+            res.on('end', () => resolve(data));
+        }).on('error', () => resolve(''));
     });
 }
 function activate(ctx) {
     const dataDir = path.join(ctx.extensionPath, 'media', 'data');
     const idle = (0, csv_1.parseCsv)(path.join(dataDir, 'idle_dialogue.csv'));
-    // ponytail: replace bundled fallback with sheet data when reachable; no retry/cache, add if offline use matters
-    fetchSheetIdle().then(remote => {
+    // sheet data wins over the bundled fallback; the last good download is cached for offline starts
+    const cacheFile = path.join(ctx.globalStorageUri.fsPath, 'idle_cache.csv');
+    const apply = (csv) => {
+        const remote = (0, csv_1.parseCsvContent)(csv);
         if (remote.length) {
             idle.length = 0;
             idle.push(...remote);
         }
+        return remote.length > 0;
+    };
+    try {
+        apply(fs.readFileSync(cacheFile, 'utf8'));
+    }
+    catch { /* no cache yet */ }
+    fetchSheetCsv().then(csv => {
+        if (!apply(csv))
+            return;
+        try {
+            fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
+            fs.writeFileSync(cacheFile, csv);
+        }
+        catch { /* cache is best-effort */ }
     });
     ctx.subscriptions.push(vscode.window.registerWebviewViewProvider('monikai.view', new MonikaProvider(ctx.extensionUri, idle)));
 }

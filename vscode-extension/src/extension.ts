@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 import * as https from 'https';
 import { parseCsv, parseCsvContent, Entry } from './csv';
 
@@ -8,21 +9,21 @@ const SHEET_CSV_URL =
   'https://docs.google.com/spreadsheets/d/1HZVg81cmAFULlnra5k1fysK6cIoT9QbCsBasPimnPCE/export?format=csv&gid=0';
 
 // Google's export URL redirects once to a signed download link.
-function fetchSheetIdle(url: string = SHEET_CSV_URL, redirectsLeft = 3): Promise<Entry[]> {
+function fetchSheetCsv(url: string = SHEET_CSV_URL, redirectsLeft = 3): Promise<string> {
   return new Promise(resolve => {
     https.get(url, res => {
       if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirectsLeft > 0) {
-        resolve(fetchSheetIdle(res.headers.location, redirectsLeft - 1));
+        resolve(fetchSheetCsv(res.headers.location, redirectsLeft - 1));
         return;
       }
       if (res.statusCode !== 200) {
-        resolve([]);
+        resolve('');
         return;
       }
       let data = '';
       res.on('data', chunk => (data += chunk));
-      res.on('end', () => resolve(parseCsvContent(data)));
-    }).on('error', () => resolve([]));
+      res.on('end', () => resolve(data));
+    }).on('error', () => resolve(''));
   });
 }
 
@@ -30,12 +31,23 @@ export function activate(ctx: vscode.ExtensionContext) {
   const dataDir = path.join(ctx.extensionPath, 'media', 'data');
   const idle = parseCsv(path.join(dataDir, 'idle_dialogue.csv'));
 
-  // ponytail: replace bundled fallback with sheet data when reachable; no retry/cache, add if offline use matters
-  fetchSheetIdle().then(remote => {
+  // sheet data wins over the bundled fallback; the last good download is cached for offline starts
+  const cacheFile = path.join(ctx.globalStorageUri.fsPath, 'idle_cache.csv');
+  const apply = (csv: string) => {
+    const remote = parseCsvContent(csv);
     if (remote.length) {
       idle.length = 0;
       idle.push(...remote);
     }
+    return remote.length > 0;
+  };
+  try { apply(fs.readFileSync(cacheFile, 'utf8')); } catch { /* no cache yet */ }
+  fetchSheetCsv().then(csv => {
+    if (!apply(csv)) return;
+    try {
+      fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
+      fs.writeFileSync(cacheFile, csv);
+    } catch { /* cache is best-effort */ }
   });
 
   ctx.subscriptions.push(
